@@ -71,9 +71,9 @@ The RL-based approach demonstrates improved responsiveness and reduced SLA viola
 
 The project is deployed on **Streamlit Cloud**:
 
-🔗 *Live URL*: `https://<your-app-name>.streamlit.app`
+🔗 *Live URL*: `https://cloud-autoscaling-rl-ak4n3kzxhazigsxgy2cj9t.streamlit.app`
 
-*(Replace with your actual deployed link)*
+
 
 ---
 
