@@ -1,79 +1,71 @@
 from cloud_env import CloudEnvironment
-from workload import generate_workload
+from workload import generate_workload, predict_workload
 from threshold_scaling import threshold_policy
 from rl_scaling import RLScaler
-from plots import compare
-
-SLA_THRESHOLD = 4.0
 
 
-def run_threshold():
-    cloud = CloudEnvironment()
-    response_times, costs, vms = [], [], []
-    sla_violations = 0
+def run(mode="bursty", sla=4.0, epsilon=0.1, steps=100):
+    cloud_t = CloudEnvironment()
+    cloud_r = CloudEnvironment()
+    rl = RLScaler(epsilon)
 
-    for t in range(100):
-        workload = generate_workload(t)
-        utilization, response_time, cost = cloud.step(workload)
+    metrics = {
+        "th_rt": [], "rl_rt": [],
+        "th_cost": [], "rl_cost": [],
+        "th_vms": [], "rl_vms": [],
+        "th_sla": 0, "rl_sla": 0
+    }
 
-        if response_time > SLA_THRESHOLD:
-            sla_violations += 1
+    for t in range(steps):
+        load = generate_workload(t, mode)
+        predicted = predict_workload()
 
-        threshold_policy(utilization, cloud)
+        # -------------------------------
+        # THRESHOLD-BASED SCALING
+        # -------------------------------
+        util, rt, cost, sla_v = cloud_t.step(load, sla)
 
-        response_times.append(response_time)
-        costs.append(cost)
-        vms.append(cloud.vms)
+        if sla_v:
+            metrics["th_sla"] += 1
 
-    return response_times, costs, vms, sla_violations
+        threshold_policy(util, cloud_t)
 
+        metrics["th_rt"].append(rt)
+        metrics["th_cost"].append(cost)
+        metrics["th_vms"].append(cloud_t.vms)
 
-def run_rl():
-    cloud = CloudEnvironment()
-    agent = RLScaler()
-    response_times, costs, vms = [], [], []
-    sla_violations = 0
+        # -------------------------------
+        # RL-BASED SCALING (SAFE RL)
+        # -------------------------------
+        util, rt, cost, sla_v = cloud_r.step(load, sla)
 
-    for t in range(100):
-        workload = generate_workload(t)
-        utilization, response_time, cost = cloud.step(workload)
+        # 🔒 HARD SLA SAFETY GUARD
+        if rt > sla:
+            cloud_r.scale_up()
 
-        if response_time > SLA_THRESHOLD:
-            sla_violations += 1
+        if sla_v:
+            metrics["rl_sla"] += 1
 
-        state = agent.get_state(utilization, cloud.vms)
-        action = agent.choose_action(state)
+        state = rl.state(util, cloud_r.vms, predicted)
+        action = rl.act(state)
 
         if action == 0:
-            cloud.scale_down()
+            cloud_r.scale_down()
         elif action == 2:
-            cloud.scale_up()
+            cloud_r.scale_up()
 
-        sla_penalty = 5 if response_time > SLA_THRESHOLD else 0
-        reward = -response_time - cost - sla_penalty
-        next_state = agent.get_state(utilization, cloud.vms)
-        agent.update(state, action, reward, next_state)
+        # Multi-objective + SLA-aware reward
+        reward = -(0.4 * rt + 0.2 * cost + 0.4 * (10 if sla_v else 0))
 
-        response_times.append(response_time)
-        costs.append(cost)
-        vms.append(cloud.vms)
+        next_state = rl.state(util, cloud_r.vms, predicted)
+        rl.learn(state, action, reward, next_state)
 
-    return response_times, costs, vms, sla_violations
+        metrics["rl_rt"].append(rt)
+        metrics["rl_cost"].append(cost)
+        metrics["rl_vms"].append(cloud_r.vms)
 
+        # Optional: stop exploration after warm-up
+        if t > 20:
+            rl.epsilon = 0.0
 
-if __name__ == "__main__":
-    th_rt, th_cost, th_vms, th_sla = run_threshold()
-    rl_rt, rl_cost, rl_vms, rl_sla = run_rl()
-
-    from plots import compare
-    compare(th_rt, rl_rt, "Response Time Comparison", "Response Time")
-    compare(th_cost, rl_cost, "Cost Comparison", "Cost")
-    compare(th_vms, rl_vms, "VM Count Comparison", "Number of VMs")
-
-    print("\n=== PERFORMANCE SUMMARY ===")
-    print(f"Threshold Avg Response Time: {sum(th_rt)/len(th_rt):.2f}")
-    print(f"RL Avg Response Time: {sum(rl_rt)/len(rl_rt):.2f}")
-    print(f"Threshold Avg Cost: {sum(th_cost)/len(th_cost):.2f}")
-    print(f"RL Avg Cost: {sum(rl_cost)/len(rl_cost):.2f}")
-    print(f"Threshold SLA violations: {th_sla}")
-    print(f"RL SLA violations: {rl_sla}")
+    return metrics

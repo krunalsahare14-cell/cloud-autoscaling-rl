@@ -2,31 +2,25 @@ import random
 import numpy as np
 
 class RLScaler:
-    def __init__(self):
-        self.q_table = {}
-        self.alpha = 0.1      # learning rate
-        self.gamma = 0.9      # discount factor
-        self.epsilon = 0.2    # exploration rate
+    def __init__(self, epsilon=0.2):
+        self.q = {}
+        self.alpha = 0.1
+        self.gamma = 0.9
+        self.epsilon = epsilon
 
-    def get_state(self, utilization, vms):
-        if utilization < 0.3:
-            util_state = 0
-        elif utilization < 0.7:
-            util_state = 1
-        else:
-            util_state = 2
-        return (util_state, vms)
+    def state(self, util, vms, predicted_load):
+        u = 0 if util < 0.3 else 1 if util < 0.7 else 2
+        p = 0 if predicted_load < 40 else 1 if predicted_load < 70 else 2
+        return (u, vms, p)
 
-    def choose_action(self, state):
+    def act(self, s):
+        self.q.setdefault(s, [0, 0, 0])
         if random.random() < self.epsilon:
             return random.choice([0, 1, 2])
-        return np.argmax(self.q_table.get(state, [0, 0, 0]))
+        return np.argmax(self.q[s])
 
-    def update(self, state, action, reward, next_state):
-        self.q_table.setdefault(state, [0, 0, 0])
-        self.q_table.setdefault(next_state, [0, 0, 0])
-
-        best_next = max(self.q_table[next_state])
-        self.q_table[state][action] += self.alpha * (
-            reward + self.gamma * best_next - self.q_table[state][action]
+    def learn(self, s, a, r, s2):
+        self.q.setdefault(s2, [0, 0, 0])
+        self.q[s][a] += self.alpha * (
+            r + self.gamma * max(self.q[s2]) - self.q[s][a]
         )
