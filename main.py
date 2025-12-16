@@ -61,20 +61,19 @@ def run_rl():
     return response_times, costs, vms, sla_violations
 
 
-# ---- Run Experiments ----
-th_rt, th_cost, th_vms, th_sla = run_threshold()
-rl_rt, rl_cost, rl_vms, rl_sla = run_rl()
+if __name__ == "__main__":
+    th_rt, th_cost, th_vms, th_sla = run_threshold()
+    rl_rt, rl_cost, rl_vms, rl_sla = run_rl()
 
-# ---- Plots ----
-compare(th_rt, rl_rt, "Response Time Comparison", "Response Time")
-compare(th_cost, rl_cost, "Cost Comparison", "Cost")
-compare(th_vms, rl_vms, "VM Count Comparison", "Number of VMs")
+    from plots import compare
+    compare(th_rt, rl_rt, "Response Time Comparison", "Response Time")
+    compare(th_cost, rl_cost, "Cost Comparison", "Cost")
+    compare(th_vms, rl_vms, "VM Count Comparison", "Number of VMs")
 
-# ---- Summary ----
-print("\n=== PERFORMANCE SUMMARY ===")
-print(f"Threshold Avg Response Time: {sum(th_rt)/len(th_rt):.2f}")
-print(f"RL Avg Response Time: {sum(rl_rt)/len(rl_rt):.2f}")
-print(f"Threshold Avg Cost: {sum(th_cost)/len(th_cost):.2f}")
-print(f"RL Avg Cost: {sum(rl_cost)/len(rl_cost):.2f}")
-print(f"Threshold SLA violations: {th_sla}")
-print(f"RL SLA violations: {rl_sla}")
+    print("\n=== PERFORMANCE SUMMARY ===")
+    print(f"Threshold Avg Response Time: {sum(th_rt)/len(th_rt):.2f}")
+    print(f"RL Avg Response Time: {sum(rl_rt)/len(rl_rt):.2f}")
+    print(f"Threshold Avg Cost: {sum(th_cost)/len(th_cost):.2f}")
+    print(f"RL Avg Cost: {sum(rl_cost)/len(rl_cost):.2f}")
+    print(f"Threshold SLA violations: {th_sla}")
+    print(f"RL SLA violations: {rl_sla}")
